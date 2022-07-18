@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "boards/rpi_pico",
+    "odango-ocds"
+]

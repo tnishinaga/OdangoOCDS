@@ -1,0 +1,4 @@
+{
+    "cortex-debug.openocdPath.linux": "/home/pi/opt/raspberrypi/openocd-pico/bin/openocd-pico",
+    "cortex-debug.variableUseNaturalFormat": false
+}
