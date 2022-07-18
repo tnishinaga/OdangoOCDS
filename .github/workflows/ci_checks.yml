@@ -23,6 +23,8 @@ jobs:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
+        projects:
+          - boards/rpi_pico
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -34,7 +36,9 @@ jobs:
       - run: cargo install flip-link
       - run: rustup target install --toolchain=${{ matrix.rust }} thumbv6m-none-eabi
       - run: cargo build --all
+        working-directory: ${{ matrix.projects }}
       - run: cargo build --all --release
+        working-directory: ${{ matrix.projects }}
   linting:
     name: Linting
     runs-on: ubuntu-latest
