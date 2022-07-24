@@ -1,4 +1,7 @@
 {
     "cortex-debug.openocdPath.linux": "/home/pi/opt/raspberrypi/openocd-pico/bin/openocd-pico",
-    "cortex-debug.variableUseNaturalFormat": false
+    "cortex-debug.variableUseNaturalFormat": false,
+    "rust-analyzer.linkedProjects": [
+        "boards/rpi_pico/Cargo.toml",
+    ]
 }

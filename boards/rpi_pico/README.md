@@ -1,267 +1,228 @@
-# Project template for rp2040-hal
+# `app-template`
 
-This template is intended as a starting point for developing your own firmware based on the rp2040-hal.
+> Quickly set up a [`probe-run`] + [`defmt`] + [`flip-link`] embedded project
+> running on the [`RTIC`] scheduler
 
-It includes all of the `knurling-rs` tooling as showcased in https://github.com/knurling-rs/app-template (`defmt`, `defmt-rtt`, `panic-probe`, `flip-link`) to make development as easy as possible.
+[`probe-run`]: https://crates.io/crates/probe-run
+[`defmt`]: https://github.com/knurling-rs/defmt
+[`flip-link`]: https://github.com/knurling-rs/flip-link
+[`RTIC`]: https://rtic.rs/
 
-`probe-run` is configured as the default runner, so you can start your program as easy as
-```sh
-cargo run --release
+Based on https://github.com/knurling-rs/app-template
+
+## Dependencies
+
+#### 1. `flip-link`:
+
+```console
+$ cargo install flip-link
 ```
 
-If you aren't using a debugger (or want to use cargo-embed/probe-rs-debugger), check out [alternative runners](#alternative-runners) for other options
+#### 2. `probe-run`:
 
-<!-- TABLE OF CONTENTS -->
-<details open="open">
-  
-  <summary><h2 style="display: inline-block">Table of Contents</h2></summary>
-  <ol>
-    <li><a href="#markdown-header-requirements">Requirements</a></li>
-    <li><a href="#installation-of-development-dependencies">Installation of development dependencies</a></li>
-    <li><a href="#running">Running</a></li>
-    <li><a href="#alternative-runners">Alternative runners</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#code-of-conduct">Code of conduct</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-  </ol>
-</details>
-
-<!-- Requirements -->
-<details open="open">
-  <summary><h2 style="display: inline-block" id="requirements">Requirements</h2></summary>
-  
-- The standard Rust tooling (cargo, rustup) which you can install from https://rustup.rs/
-
-- Toolchain support for the cortex-m0+ processors in the rp2040 (thumbv6m-none-eabi)
-
-- flip-link - this allows you to detect stack-overflows on the first core, which is the only supported target for now.
-
-- probe-run. Upstream support for RP2040 was added with version 0.3.1.
-
-- A CMSIS-DAP probe. (J-Link and other probes will not work with probe-run)
-
-  You can use a second Pico as a CMSIS-DAP debug probe by installing the following firmware on it:
-  https://github.com/majbthrd/DapperMime/releases/download/20210225/raspberry_pi_pico-DapperMime.uf2
-
-  More details on supported debug probes can be found in [debug_probes.md](debug_probes.md)
-
-</details>
-
-<!-- Installation of development dependencies -->
-<details open="open">
-  <summary><h2 style="display: inline-block" id="installation-of-development-dependencies">Installation of development dependencies</h2></summary>
-
-```sh
-rustup target install thumbv6m-none-eabi
-cargo install flip-link
-# This is our suggested default 'runner'
-cargo install probe-run
-# If you want to use elf2uf2-rs instead of probe-run, instead do...
-cargo install elf2uf2-rs --locked
+``` console
+$ # make sure to install v0.2.0 or later
+$ cargo install probe-run
 ```
 
-</details>
+#### 3. [`cargo-generate`]:
 
-
-<!-- Running -->
-<details open="open">
-  <summary><h2 style="display: inline-block" id="running">Running</h2></summary>
-  
-For a debug build
-```sh
-cargo run
-```
-For a release build
-```sh
-cargo run --release
+``` console
+$ cargo install cargo-generate
 ```
 
-If you do not specify a DEFMT_LOG level, it will be set to `debug`.
-That means `println!("")`, `info!("")` and `debug!("")` statements will be printed.
-If you wish to override this, you can change it in `.cargo/config.toml` 
-```toml
-[env]
-DEFMT_LOG = "off"
-```
-You can also set this inline (on Linux/MacOS)  
-```sh
-DEFMT_LOG=trace cargo run
-```
+[`cargo-generate`]: https://crates.io/crates/cargo-generate
 
-or set the _environment variable_ so that it applies to every `cargo run` call that follows:
-#### Linux/MacOS/unix
-```sh
-export DEFMT_LOG=trace
+> *Note:* You can also just clone this repository instead of using `cargo-generate`, but this involves additional manual adjustments.
+
+## Setup
+
+#### 1. Initialize the project template
+
+``` console
+$ cargo generate \
+    --git https://github.com/rtic-rs/app-template \
+    --branch main \
+    --name my-app
 ```
 
-Setting the DEFMT_LOG level for the current session  
-for bash
-```sh
-export DEFMT_LOG=trace
+If you look into your new `my-app` folder, you'll find that there are a few `TODO`s in the files marking the properties you need to set.
+
+Let's walk through them together now.
+
+#### 2. Set `probe-run` chip
+
+Pick a chip from `probe-run --list-chips` and enter it into `.cargo/config.toml`.
+
+If, for example, you have a nRF52840 Development Kit from one of [our workshops], replace `{{chip}}` with `nRF52840_xxAA`.
+
+[our workshops]: https://github.com/ferrous-systems/embedded-trainings-2020
+
+``` diff
+ # .cargo/config.toml
+ [target.'cfg(all(target_arch = "arm", target_os = "none"))']
+-runner = "probe-run --chip {{chip}}"
++runner = "probe-run --chip nRF52840_xxAA"
 ```
 
-#### Windows
-Windows users can only override DEFMT_LOG through `config.toml`
-or by setting the environment variable as a separate step before calling `cargo run`
-- cmd
-```cmd
-set DEFMT_LOG=trace
-```
-- powershell
-```ps1
-$Env:DEFMT_LOG = trace
-```
+#### 3. Adjust the compilation target
 
-```cmd
-cargo run
+In `.cargo/config.toml`, pick the right compilation target for your board.
+
+``` diff
+ # .cargo/config.toml
+ [build]
+-target = "thumbv6m-none-eabi"    # Cortex-M0 and Cortex-M0+
+-# target = "thumbv7m-none-eabi"    # Cortex-M3
+-# target = "thumbv7em-none-eabi"   # Cortex-M4 and Cortex-M7 (no FPU)
+-# target = "thumbv7em-none-eabihf" # Cortex-M4F and Cortex-M7F (with FPU)
++target = "thumbv7em-none-eabihf" # Cortex-M4F (with FPU)
 ```
 
-</details>
-<!-- ALTERNATIVE RUNNERS -->
-<details open="open">
-  <summary><h2 style="display: inline-block" id="alternative-runners">Alternative runners</h2></summary>
+Add the target with `rustup`.
 
-If you don't have a debug probe or if you want to do interactive debugging you can set up an alternative runner for cargo.  
+``` console
+$ rustup target add thumbv7em-none-eabihf
+```
 
-Some of the options for your `runner` are listed below:
+#### 4. Add a HAL as a dependency
 
-* **cargo embed**  
-  *Step 1* - Install [`cargo embed`](https://github.com/probe-rs/cargo-embed):
+In `Cargo.toml`, list the Hardware Abstraction Layer (HAL) for your board as a dependency.
 
-  ```console
-  $ cargo install cargo-embed
-  ```
+For the nRF52840 you'll want to use the [`nrf52840-hal`].
 
-  *Step 2* - Make sure your .cargo/config contains the following
+[`nrf52840-hal`]: https://crates.io/crates/nrf52840-hal
 
-  ```toml
-  [target.thumbv6m-none-eabi]
-  runner = "cargo embed"
-  ```
+``` diff
+ # Cargo.toml
+ [dependencies]
+-# some-hal = "1.2.3"
++nrf52840-hal = "0.12.0"
+```
 
-  *Step 3* - Update settings in [Embed.toml](./Embed.toml)  
-  - The defaults are to flash, reset, and start a defmt logging session
-  You can find all the settings and their meanings [in the cargo-embed repo](https://github.com/probe-rs/cargo-embed/blob/master/src/config/default.toml)
+#### 5. Import your HAL
 
-  *Step 4* - Use `cargo run`, which will compile the code and start the
-  specified 'runner'. As the 'runner' is cargo embed, it will flash the device
-  and start running immediately
+Now that you have selected a HAL, fix the HAL import in `src/lib.rs`
 
-  ```console
-  $ cargo run --release
-  ```
+``` diff
+ // my-app/src/lib.rs
+-// use some_hal as _; // memory layout
++use nrf52840_hal as _; // memory layout
+```
 
-* **probe-rs-debugger**
+#### (6. Get a linker script)
 
-  *Step 1* - Download [`probe-rs-debugger VSCode plugin 0.4.0`](https://github.com/probe-rs/vscode/releases/download/v0.4.0/probe-rs-debugger-0.4.0.vsix)
+Some HAL crates require that you manually copy over a file called `memory.x` from the HAL to the root of your project. For nrf52840-hal, this is done automatically so no action is needed. For other HAL crates, you can get it from your local Cargo folder, the default location is under:
 
-  *Step 2* - Install `probe-rs-debugger VSCode plugin`
-  ```console
-  $ code --install-extension probe-rs-debugger-0.4.0.vsix
-  ```
+```
+~/.cargo/registry/src/
+```
 
-  *Step 3* - Install `probe-rs-debugger`
-  ```console
-  $ cargo install probe-rs-debugger
-  ```
+Not all HALs provide a `memory.x` file, you may need to write it yourself. Check the documentation for the HAL you are using.
 
-  *Step 4* - Open this project in VSCode
 
-  *Step 5* - Launch a debug session by choosing `Run`>`Start Debugging` (or press F5)
+#### 7. Run!
 
-* **Loading a UF2 over USB**  
-  *Step 1* - Install [`elf2uf2-rs`](https://github.com/JoNil/elf2uf2-rs):
+You are now all set to `cargo-run` your first `defmt`-powered application!
+There are some examples in the `src/bin` directory.
 
-  ```console
-  $ cargo install elf2uf2-rs --locked
-  ```
+Start by `cargo run`-ning `my-app/src/bin/minimal.rs`:
 
-  *Step 2* - Make sure your .cargo/config contains the following
+``` console
+$ # `rb` is an alias for `run --bin`
+$ cargo rb hello
+    Finished dev [optimized + debuginfo] target(s) in 0.03s
+flashing program ..
+DONE
+resetting device
+0.000000 INFO Hello, world!
+(..)
 
-  ```toml
-  [target.thumbv6m-none-eabi]
-  runner = "elf2uf2-rs -d"
-  ```
+$ echo $?
+0
+```
 
-  The `thumbv6m-none-eabi` target may be replaced by the all-Arm wildcard
-  `'cfg(all(target_arch = "arm", target_os = "none"))'`.
+#### (8. Set `rust-analyzer.linkedProjects`)
 
-  *Step 3* - Boot your RP2040 into "USB Bootloader mode", typically by rebooting
-  whilst holding some kind of "Boot Select" button. On Linux, you will also need
-  to 'mount' the device, like you would a USB Thumb Drive.
+If you are using [rust-analyzer] with VS Code for IDE-like features you can add following configuration to your `.vscode/settings.json` to make it work transparently across workspaces. Find the details of this option in the [RA docs].
 
-  *Step 4* - Use `cargo run`, which will compile the code and start the
-  specified 'runner'. As the 'runner' is the elf2uf2-rs tool, it will build a UF2
-  file and copy it to your RP2040.
+```json
+{
+    "rust-analyzer.linkedProjects": [
+        "Cargo.toml",
+        "firmware/Cargo.toml",
+    ]
+}
+```
 
-  ```console
-  $ cargo run --release
-  ```
+[RA docs]: https://rust-analyzer.github.io/manual.html#configuration
+[rust-analyzer]: https://rust-analyzer.github.io/
 
-* **Loading with picotool**  
-  As ELF files produced by compiling Rust code are completely compatible with ELF
-  files produced by compiling C or C++ code, you can also use the Raspberry Pi
-  tool [picotool](https://github.com/raspberrypi/picotool). The only thing to be
-  aware of is that picotool expects your ELF files to have a `.elf` extension, and
-  by default Rust does not give the ELF files any extension. You can fix this by
-  simply renaming the file.
+## Trying out the git version of defmt
 
-  This means you can't easily use it as a cargo runner - yet.
+This template is configured to use the latest crates.io release (the "stable" release) of the `defmt` framework.
+To use the git version (the "development" version) of `defmt` follow these steps:
 
-  Also of note is that the special
-  [pico-sdk](https://github.com/raspberrypi/pico-sdk) macros which hide
-  information in the ELF file in a way that `picotool info` can read it out, are
-  not supported in Rust. An alternative is TBC.
+1. Install the *git* version of `probe-run`
 
-</details>
+``` console
+$ cargo install --git https://github.com/knurling-rs/probe-run --branch main
+```
 
-<!-- ROADMAP -->
+2. Check which defmt version `probe-run` supports
 
-## Roadmap
+``` console
+$ probe-run --version
+0.2.0 (aa585f2 2021-02-22)
+supported defmt version: 60c6447f8ecbc4ff023378ba6905bcd0de1e679f
+```
 
-NOTE These packages are under active development. As such, it is likely to
-remain volatile until a 1.0.0 release.
+In the example output, the supported version is `60c6447f8ecbc4ff023378ba6905bcd0de1e679f`
 
-See the [open issues](https://github.com/rp-rs/rp2040-project-template/issues) for a list of
-proposed features (and known issues).
+3. Switch defmt dependencies to git: uncomment the last part of the root `Cargo.toml` and enter the hash reported by `probe-run --version`:
 
-## Contributing
+``` diff
+-# [patch.crates-io]
+-# defmt = { git = "https://github.com/knurling-rs/defmt", rev = "use defmt version reported by `probe-run --version`" }
+-# defmt-rtt = { git = "https://github.com/knurling-rs/defmt", rev = "use defmt version reported by `probe-run --version`" }
+-# defmt-test = { git = "https://github.com/knurling-rs/defmt", rev = "use defmt version reported by `probe-run --version`" }
+-# panic-probe = { git = "https://github.com/knurling-rs/defmt", rev = "use defmt version reported by `probe-run --version`" }
++[patch.crates-io]
++defmt = { git = "https://github.com/knurling-rs/defmt", rev = "60c6447f8ecbc4ff023378ba6905bcd0de1e679f" }
++defmt-rtt = { git = "https://github.com/knurling-rs/defmt", rev = "60c6447f8ecbc4ff023378ba6905bcd0de1e679f" }
++defmt-test = { git = "https://github.com/knurling-rs/defmt", rev = "60c6447f8ecbc4ff023378ba6905bcd0de1e679f" }
++panic-probe = { git = "https://github.com/knurling-rs/defmt", rev = "60c6447f8ecbc4ff023378ba6905bcd0de1e679f" }
+```
 
-Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+You are now using the git version of `defmt`!
 
-The steps are:
+**NOTE** there may have been breaking changes between the crates.io version and the git version; you'll need to fix those in the source code.
 
-1. Fork the Project by clicking the 'Fork' button at the top of the page.
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Make some changes to the code or documentation.
-4. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-5. Push to the Feature Branch (`git push origin feature/AmazingFeature`)
-6. Create a [New Pull Request](https://github.com/rp-rs/rp-hal/pulls)
-7. An admin will review the Pull Request and discuss any changes that may be required.
-8. Once everyone is happy, the Pull Request can be merged by an admin, and your work is part of our project!
+## Support
 
-## Code of Conduct
+`app-template` is part of the [Knurling] project, [Ferrous Systems]' effort at
+improving tooling used to develop for embedded systems.
 
-Contribution to this crate is organized under the terms of the [Rust Code of
-Conduct][CoC], and the maintainer of this crate, the [rp-rs team], promises
-to intervene to uphold that code of conduct.
-
-[CoC]: CODE_OF_CONDUCT.md
-[rp-rs team]: https://github.com/orgs/rp-rs/teams/rp-rs
+If you think that our work is useful, consider sponsoring it via [GitHub
+Sponsors].
 
 ## License
 
-The contents of this repository are dual-licensed under the _MIT OR Apache
-2.0_ License. That means you can chose either the MIT licence or the
-Apache-2.0 licence when you re-use this code. See `MIT` or `APACHE2.0` for more
-information on each specific licence.
+Licensed under either of
 
-Any submissions to this project (e.g. as Pull Requests) must be made available
-under these terms.
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  http://www.apache.org/licenses/LICENSE-2.0)
 
-## Contact
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
-Raise an issue: [https://github.com/rp-rs/rp2040-project-template/issues](https://github.com/rp-rs/rp2040-project-template/issues)
-Chat to us on Matrix: [#rp-rs:matrix.org](https://matrix.to/#/#rp-rs:matrix.org)
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+licensed as above, without any additional terms or conditions.
+
+[Knurling]: https://knurling.ferrous-systems.com
+[Ferrous Systems]: https://ferrous-systems.com/
+[GitHub Sponsors]: https://github.com/sponsors/knurling-rs

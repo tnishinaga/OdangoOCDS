@@ -1,29 +1,23 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-# Choose a default "cargo run" tool:
-# - probe-run provides flashing and defmt via a hardware debugger
-# - cargo embed offers flashing, rtt, defmt and a gdb server via a hardware debugger
-#     it is configured via the Embed.toml in the root of this project
-# - elf2uf2-rs loads firmware over USB when the rp2040 is in boot mode
-# runner = "probe-run --chip RP2040"
 runner = "cargo embed"
-# runner = "elf2uf2-rs -d"
-
 rustflags = [
   "-C", "linker=flip-link",
-  "-C", "link-arg=--nmagic",
   "-C", "link-arg=-Tlink.x",
   "-C", "link-arg=-Tdefmt.x",
-
-  # Code-size optimizations.
-  #   trap unreachable can save a lot of space, but requires nightly compiler.
-  #   uncomment the next line if you wish to enable it
-  # "-Z", "trap-unreachable=no",
-  "-C", "inline-threshold=5",
-  "-C", "no-vectorize-loops",
+  # This is needed if your flash or ram addresses are not aligned to 0x10000 in memory.x
+  # See https://github.com/rust-embedded/cortex-m-quickstart/pull/95
+  "-C", "link-arg=--nmagic",
 ]
 
 [build]
-target = "thumbv6m-none-eabi"
+# TODO(3) Adjust the compilation target.
+# (`thumbv6m-*` is compatible with all ARM Cortex-M chips but using the right
+# target improves performance)
+target = "thumbv6m-none-eabi"    # Cortex-M0 and Cortex-M0+
+# target = "thumbv7m-none-eabi"    # Cortex-M3
+# target = "thumbv7em-none-eabi"   # Cortex-M4 and Cortex-M7 (no FPU)
+# target = "thumbv7em-none-eabihf" # Cortex-M4F and Cortex-M7F (with FPU)
 
-[env]
-DEFMT_LOG = "debug"
+[alias]
+rb = "run --bin"
+rrb = "run --release --bin"

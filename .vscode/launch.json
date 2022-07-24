@@ -3,7 +3,7 @@
     "configurations": [
         {
             "name": "Pico Debug",
-            "cwd": "${workspaceRoot}/",
+            "cwd": "${workspaceRoot}/boards/rpi_pico",
             "executable": "target/thumbv6m-none-eabi/debug/odango-ocds-raspberrypi-pico",
             "request": "launch",
             "type": "cortex-debug",

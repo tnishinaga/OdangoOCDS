@@ -1,69 +1,113 @@
-//! Blinks the LED on a Pico board
-//!
-//! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
-#![no_std]
 #![no_main]
+#![no_std]
 
-use bsp::entry;
-use defmt::*;
+use core::sync::atomic::{AtomicUsize, Ordering};
 use defmt_rtt as _;
-use embedded_hal::digital::v2::OutputPin;
-use embedded_time::fixed_point::FixedPoint;
-use panic_probe as _;
+use panic_probe as _; // global logger
+use rp_pico::hal as _; // memory layout
 
-// Provide an alias for our BSP so we can switch targets quickly.
-// Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
-use rp_pico as bsp;
-// use sparkfun_pro_micro_rp2040 as bsp;
+#[rtic::app(device = rp_pico::hal::pac, peripherals = true, dispatchers = [CLOCKS_IRQ])]
+mod app {
+    use cortex_m_semihosting::debug;
+    use rp2040_hal::{clocks, Sio, Watchdog};
+    use systick_monotonic::Systick;
 
-use bsp::hal::{
-    clocks::{init_clocks_and_plls, Clock},
-    pac,
-    sio::Sio,
-    watchdog::Watchdog,
-};
+    // TODO: Add a monotonic if scheduling will be used
+    #[monotonic(binds = SysTick, default = true)]
+    type Mono = Systick<1000>; // 1kHz / 1ms granularity
 
-#[entry]
-fn main() -> ! {
-    info!("Program start");
-    let mut pac = pac::Peripherals::take().unwrap();
-    let core = pac::CorePeripherals::take().unwrap();
-    let mut watchdog = Watchdog::new(pac.WATCHDOG);
-    let sio = Sio::new(pac.SIO);
+    // Shared resources go here
+    #[shared]
+    struct Shared {
+        // TODO: Add resources
+    }
 
-    // External high-speed crystal on the pico board is 12Mhz
-    let external_xtal_freq_hz = 12_000_000u32;
-    let clocks = init_clocks_and_plls(
-        external_xtal_freq_hz,
-        pac.XOSC,
-        pac.CLOCKS,
-        pac.PLL_SYS,
-        pac.PLL_USB,
-        &mut pac.RESETS,
-        &mut watchdog,
-    )
-    .ok()
-    .unwrap();
+    // Local resources go here
+    #[local]
+    struct Local {
+        // TODO: Add resources
+    }
 
-    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().integer());
+    #[init]
+    fn init(cx: init::Context) -> (Shared, Local, init::Monotonics) {
+        let mut resets = cx.device.RESETS;
+        let sio = Sio::new(cx.device.SIO);
+        let pins = rp_pico::Pins::new(
+            cx.device.IO_BANK0,
+            cx.device.PADS_BANK0,
+            sio.gpio_bank0,
+            &mut resets,
+        );
 
-    let pins = bsp::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+        let mut watchdog = Watchdog::new(cx.device.WATCHDOG);
+        let clocks = clocks::init_clocks_and_plls(
+            rp_pico::XOSC_CRYSTAL_FREQ,
+            cx.device.XOSC,
+            cx.device.CLOCKS,
+            cx.device.PLL_SYS,
+            cx.device.PLL_USB,
+            &mut resets,
+            &mut watchdog,
+        )
+        .ok()
+        .unwrap();
 
-    let mut led_pin = pins.led.into_push_pull_output();
+        defmt::info!("init");
+        let mono = Mono::new(cx.core.SYST, rp_pico::XOSC_CRYSTAL_FREQ);
 
-    loop {
-        info!("on!");
-        led_pin.set_high().unwrap();
-        delay.delay_ms(500);
-        info!("off!");
-        led_pin.set_low().unwrap();
-        delay.delay_ms(500);
+        task1::spawn().ok();
+
+        // Setup the monotonic timer
+        (
+            Shared {
+                // Initialization of shared resources go here
+            },
+            Local {
+                // Initialization of local resources go here
+            },
+            init::Monotonics(
+                // Initialization of optional monotonic timers go here
+                mono,
+            ),
+        )
+    }
+
+    // Optional idle, can be removed if not needed.
+    #[idle]
+    fn idle(_: idle::Context) -> ! {
+        defmt::info!("idle");
+
+        loop {
+            continue;
+        }
+    }
+
+    // TODO: Add tasks
+    #[task]
+    fn task1(_cx: task1::Context) {
+        defmt::info!("Hello from task1!");
+        debug::exit(debug::EXIT_SUCCESS);
     }
 }
 
-// End of file
+// same panicking *behavior* as `panic-probe` but doesn't print a panic message
+// this prevents the panic message being printed *twice* when `defmt::panic` is invoked
+#[defmt::panic_handler]
+fn panic() -> ! {
+    cortex_m::asm::udf()
+}
+
+static COUNT: AtomicUsize = AtomicUsize::new(0);
+defmt::timestamp!("{=usize}", {
+    // NOTE(no-CAS) `timestamps` runs with interrupts disabled
+    let n = COUNT.load(Ordering::Relaxed);
+    COUNT.store(n + 1, Ordering::Relaxed);
+    n
+});
+
+/// Terminates the application and makes `probe-run` exit with exit-code = 0
+pub fn exit() -> ! {
+    loop {
+        cortex_m::asm::bkpt();
+    }
+}
